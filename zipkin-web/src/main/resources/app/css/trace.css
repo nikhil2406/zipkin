@@ -37,6 +37,16 @@
   opacity: 0.25;
 }
 
+/*to mark spans which are in crop range*/
+/* #trace-container .span.service-span.inrange{
+	background: #d9534f;
+}
+
+to mark spans which are not in crop range
+#trace-container .span.service-span.outrange{
+	background: #ccc;
+} */
+
 /* ensure spans are shown even if the don't have a name */
 #trace-container .span .handle .service-name:after {
   content: ".";
@@ -66,6 +76,10 @@
 #trace-container .span .duration-container {
   position: relative;
   margin-left: 155px;
+}
+
+#trace-container .span .duration-container .duration.inrange {
+	color: #d9534f;
 }
 
 #trace-container #timeLabel.span {

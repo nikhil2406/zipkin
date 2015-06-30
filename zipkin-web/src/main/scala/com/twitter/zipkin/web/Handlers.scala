@@ -446,6 +446,7 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
     }
 
     val data = Map[String, Object](
+      "traceId" -> trace.id.get.toHexString,
       "duration" -> durationStr(traceDuration),
       "services" -> serviceDurations.map(_.size),
       "depth" -> combo.spanDepths.map(_.values.max),
@@ -457,6 +458,134 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
     MustacheRenderer("v2/trace.mustache", data)
   }
 
+  private def isAllDigits(x: String) = x forall Character.isDigit
+  
+  protected def renderTraceRedraw(combo: TraceCombo, minTime:String, maxTime:String): Renderer = {
+	  val trace = combo.trace
+	  val traceStartTimestamp = trace.getStartAndEndTimestamp.map(_.start).getOrElse(0L)
+	  val childMap = trace.getIdToChildrenMap
+	  val spanMap = trace.getIdToSpanMap
+	  val traceDuration = trace.duration * 1000
+	  
+	  // check if strings are not integers. Set default values
+	  val minTimeLong = if(isAllDigits(minTime)) {
+		  traceStartTimestamp + (minTime.toLong)*1000
+	  } else traceStartTimestamp
+	  
+	  val maxTimeLong = if(isAllDigits(maxTime)) {
+		  traceStartTimestamp + (maxTime.toLong)*1000
+	  } else (traceStartTimestamp+traceDuration.toLong)
+
+	  //removing 1000 multiply factor. Added later when required during calculation of timemarkers
+	  val newDuration = maxTimeLong-minTimeLong
+	
+	  val spans = for {
+	    rootSpan <- trace.getRootSpans().sortBy(_.firstAnnotation.map(_.timestamp))
+	    span <- trace.getSpanTree(rootSpan, childMap).toList 
+	  } yield {
+		val start = span.firstAnnotation.map(_.timestamp).getOrElse(traceStartTimestamp)
+	
+		val spanDuration: Long = span.duration.map{d=>d}.getOrElse(0)
+		val spanEnd: Long = start + spanDuration
+		
+		val (left, width, spanInRange) = {
+			if(start < minTimeLong && spanEnd < minTimeLong) {
+				(0,0.0,"outrange")
+			} else if (start < minTimeLong && spanEnd > minTimeLong && spanEnd < maxTimeLong) {
+				val w = (((spanEnd - minTimeLong).toDouble)/newDuration.toDouble) * 100
+				(0,w,"outrange")
+			} else if (start < minTimeLong && spanEnd > minTimeLong && spanEnd > maxTimeLong) {
+				(0,100.toDouble,"outrange")
+			} else if (start >= minTimeLong && start < maxTimeLong && spanEnd <= maxTimeLong) {
+				val l = (((start - minTimeLong).toFloat)/newDuration.toFloat) * 100
+				val w = (((spanEnd - start).toDouble)/newDuration.toDouble) * 100
+				(l,w,"inrange")
+			} else if (start >= minTimeLong && start < maxTimeLong && spanEnd > maxTimeLong) {
+				val l = (((start - minTimeLong).toFloat)/newDuration.toFloat) * 100
+				val w = (((maxTimeLong - start).toDouble)/newDuration.toDouble) * 100
+				(l,w,"inrange")
+			} else if (start > maxTimeLong) {
+				(100,0.0,"outrange")
+			} else {
+				(0,0.0,"outrange")
+			}
+		}
+		
+
+	    val depth = combo.spanDepths.get.getOrElse(span.id, 1)
+	    //val width = span.duration.map { d => (d.toDouble / trace.duration.toDouble) * 100 }.getOrElse(0.0)
+	
+	    val binaryAnnotations = span.binaryAnnotations.map {
+	      case ann if ZConstants.CoreAddress.contains(ann.key) =>
+	        val key = ZConstants.CoreAnnotationNames.get(ann.key).get
+	        val value = ann.host.map { e => s"${e.getHostAddress}:${e.getUnsignedPort}" }.get
+	        JsonBinaryAnnotation(key, value, ann.annotationType, ann.host.map(JsonEndpoint.wrap))
+	      case ann => JsonBinaryAnnotation.wrap(ann)
+	    }
+	
+	    Map(
+	      "spanId" -> SpanId(span.id).toString,
+	      "spanInRange" -> spanInRange,
+	      "parentId" -> span.parentId.filter(spanMap.get(_).isDefined).map(SpanId(_).toString),
+	      "spanName" -> span.name,
+	      "serviceNames" -> span.serviceNames.mkString(","),
+	      "serviceName" -> span.serviceName,
+	      "duration" -> span.duration,
+	      "durationStr" -> span.duration.map { d => durationStr(d * 1000) },
+	      "left" -> left,
+	      "width" -> width,
+	      //"left" -> ((start - traceStartTimestamp).toFloat / trace.duration.toFloat) * 100,
+	      //"width" -> (if (width < 0.1) 0.1 else width),
+	      "depth" -> (depth + 1) * 5,
+	      "depthClass" -> (depth - 1) % 6,
+	      "children" -> childMap.get(span.id).map(_.map(s => SpanId(s.id).toString).mkString(",")),
+	      "annotations" -> span.annotations.sortBy(_.timestamp).map { a =>
+	        Map(
+	          "isCore" -> ZConstants.CoreAnnotations.contains(a.value),
+	          "left" -> span.duration.map { d => ((a.timestamp - start).toFloat / d.toFloat) * 100 },
+	          "endpoint" -> a.host.map { e => s"${e.getHostAddress}:${e.getUnsignedPort}" },
+	          "value" -> annoToString(a.value),
+	          "timestamp" -> a.timestamp,
+	          "relativeTime" -> durationStr((a.timestamp - traceStartTimestamp) * 1000),
+	          "serviceName" -> a.host.map(_.serviceName),
+	          "duration" -> a.duration,
+	          "width" -> a.duration.getOrElse(8)
+	        )
+	      },
+	      "binaryAnnotations" -> binaryAnnotations
+	    )
+	  }
+	
+	  
+	  val serviceDurations = combo.traceSummary map { summary =>
+	    summary.spanTimestamps.groupBy(_.name).map { case (n, sts) =>
+	      MustacheServiceDuration(n, sts.length, sts.map(_.duration).max / 1000)
+	    }.toSeq
+	  }
+	
+	  
+	  val timeMarkers = Seq[Double](0.0, 0.2, 0.4, 0.6, 0.8, 1.0).zipWithIndex map { case (p, i) =>
+	    //Map("index" -> i, "time" -> durationStr((traceDuration * p).toLong))
+	    Map("index" -> i, "time" -> durationStr((minTime.toLong)*1000000 + ( (newDuration * 1000) * p).toLong))
+	  }
+	
+	  val data = Map[String, Object](
+		"traceId" -> trace.id.get.toHexString,
+	    "duration" -> durationStr(traceDuration),
+		//"duration" -> durationStr(newDuration),
+	    "services" -> serviceDurations.map(_.size),
+	    "depth" -> combo.spanDepths.map(_.values.max),
+	    "totalSpans" -> spans.size.asInstanceOf[Object],
+	    "serviceCounts" -> serviceDurations.map(_.sortBy(_.name)),
+	    "timeMarkers" -> timeMarkers,
+	    "spans" -> spans)
+
+
+	  MustacheRenderer("v2/tracecontainer.mustache", data)
+  }
+
+
+
   def handleTraces(client: ZipkinQuery[Future]): Service[Request, Renderer] =
     Service.mk[Request, Renderer] { req =>
       pathTraceId(req.path.split("/").lastOption) map { id =>
@@ -466,6 +595,25 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
         }
       } getOrElse NotFound
     }
+
+  def handleTraceRedraw(client: ZipkinQuery[Future]): Service[Request, Renderer] =
+    Service.mk[Request, Renderer] { req =>
+    	val minTime = req.params("minTime")
+    	val maxTime = req.params("maxTime")
+    	
+	    req.path.split("/") match {
+		    case Array("", "traceredraw", traceId) =>
+		      pathTraceId(Some(traceId)) map { id =>
+		        client.getTraceCombosByIds(Seq(id), getAdjusters(req)) flatMap {
+		          case Seq(combo) => Future.value(renderTraceRedraw(combo.toTraceCombo, minTime, maxTime))
+		          case _ => NotFound
+		        }
+		      } getOrElse NotFound
+		    //case _ => None
+	    }
+    }
+
+
 
   def handleGetTrace(client: ZipkinQuery[Future]): Service[Request, Renderer] =
     new NotFoundService {

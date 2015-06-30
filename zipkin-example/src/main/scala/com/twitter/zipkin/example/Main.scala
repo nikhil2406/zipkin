@@ -23,10 +23,11 @@ object Main extends TwitterServer with Closer
   with AnormDBSpanStoreFactory
   with ZipkinSpanGenerator
 {
-  val genSampleTraces = flag("genSampleTraces", false, "Generate sample traces")
+  val genSampleTraces = flag("genSampleTraces", true, "Generate sample traces")
 
   def main() {
     val store = newAnormSpanStore()
+    println("Main::main() genSampleTraces=",genSampleTraces())
     if (genSampleTraces())
       Await.result(generateTraces(store))
 

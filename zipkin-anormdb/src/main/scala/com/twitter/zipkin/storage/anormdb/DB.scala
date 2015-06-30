@@ -27,8 +27,8 @@ import com.twitter.util.{Try, Return, Throw}
  * See http://www.playframework.com/documentation/2.1.1/ScalaAnorm for
  * documentation on using Anorm.
  */
-case class DB(dbconfig: DBConfig = new DBConfig()) {
-
+//case class DB(dbconfig: DBConfig = new DBConfig()) {
+case class DB(dbconfig: DBConfig = new DBConfig(install=true)) {
   // Load the driver
   Class.forName(dbconfig.driver)
 

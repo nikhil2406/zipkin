@@ -1,45 +1,13 @@
 <div id='trace-controls' class='row well well-sm'>
-  <ul class='nav nav-pills'>
-    <li class=''><a href='#'><strong>Duration:</strong> <span class='badge'>{{duration}}</span></a></li>
-    <li class=''><a href='#'><strong>Services:</strong> <span class='badge'>{{services}}</span></a></li>
-    <li class=''><a href='#'><strong>Depth:</strong> <span class='badge'>{{depth}}</span></a></li>
-    <li class=''><a href='#'><strong>Total Spans:</strong> <span class='badge'>{{totalSpans}}</span></a></li>
-  </ul>
 
   <form class='form-inline' role='form'>
     <div class='btn-group btn-group-sm' id='filterAllServices'>
       <button type='button' class='btn btn-default' value='uiExpandAllSpans'>Expand All</button>
       <button type='button' class='btn btn-default active' value='uiCollapseAllSpans'>Collapse All</button>
     </div>
-    <select data-placeholder='Filter Service Search' class='form-control input-sm' name='serviceFilterSearch' id='serviceFilterSearch'>
-      <option value=''></option>
-      {{#serviceCounts}}
-      <option value='{{name}}'>{{name}}</option>
-      {{/serviceCounts}}
-    </select>
   </form>
 
-
-  <div class='trace-details services'>
-  {{#serviceCounts}}
-    <span class='label label-default service-filter-label' data-service-name='{{name}}'>{{name}} x{{count}}</span>
-  {{/serviceCounts}}
-  </div>
 </div>
-
-  <div class="row well well-sm">
-    <form class='form-inline' role='form' action="/traceredraw/{{traceId}}" method="GET" target="_blank">
-    <div class="form-group">
-      <label for="minTime">MinTime</label>
-      <input class="form-control input-sm" id="minTime" name="minTime" type="text">
-    </div>
-    <div class="form-group">
-      <label for="maxTime">MaxTime</label>
-      <input class="form-control input-sm" id="maxTime" name="maxTime" type="text">
-    </div>
-    <button type="submit" class="btn btn-default btn-sm">Redraw</button>
-    </form>
-  </div>
 
 <div class='row' id='trace-container'>
   <div id='timeLabel' class='span'>
@@ -54,7 +22,7 @@
   {{#spans}}
   <div
     id='{{spanId}}'
-    class='span service-span depth-{{depthClass}}'
+    class='span service-span depth-{{depthClass}} '
     data-keys='id,spanName,serviceNames,serviceName,durationStr,duration'
     data-id='{{spanId}}'
     data-parent-id='{{parentId}}'
@@ -77,7 +45,7 @@
       <div class='time-marker time-marker-{{index}}'>.</div>
       {{/timeMarkers}}
 
-      <div class='duration' style='left: {{left}}%; width: {{width}}%'>
+      <div class='duration {{spanInRange}}' style='left: {{left}}%; width: {{width}}%'>
         {{durationStr}} : {{spanName}}
         {{#annotations}}
         <div class='annotation{{#isCore}} core{{/isCore}}'
@@ -118,7 +86,6 @@
       <div class='modal-body'>
         <table id='annotations' class='table table-striped'>
           <thead><tr>
-            <th>Date Time</th>
             <th>Relative Time</th>
             <th>Duration</th>
             <th>Service</th>
@@ -127,7 +94,6 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td data-key='timestamp' class="local-datetime"></td>
               <td data-key='relativeTime'></td>
               <td data-key='duration'></td>
               <td data-key='serviceName'></td>
@@ -153,3 +119,5 @@
     </div>
   </div>
 </div>
+
+

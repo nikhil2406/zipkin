@@ -11,6 +11,7 @@ define(
 
     function trace() {
       this.spans = {};
+      this.spansBackup = {};
       this.parents = {};
       this.children = {};
       this.spansByService = {};
@@ -46,6 +47,18 @@ define(
         });
       };
 
+      /*This method stores original span details for later use.
+       * When span view is zoomed in and zoomed out these details help to
+       * get back to original span view*/
+      this.setupRedrawSpan = function($span) {
+          var id = $span.data('id');
+
+          $span.id = id;
+          this.spansBackup[id] = $span;
+        };
+
+      
+      
       this.getSpansByService = function(svc) {
         var spans = this.spansByService[svc];
         if (spans === undefined)
@@ -225,6 +238,95 @@ define(
         self.actingOnAll = false;
       };
 
+      /*This method modifies the span container view. It zooms in the span view on selected time zone.
+       * Spans starting with in the selected time zone are highlighted with span name in red color.
+       * Also unhides zoomout button so that user can go back to original span view*/
+      this.zoomInSpans = function() {
+    	  var self = this;
+
+    	  var originalDuration = parseFloat($('#timeLabel-redraw .time-marker-5').text());
+    	  var mintime = parseFloat($('#minTime').val());
+    	  var maxtime = parseFloat($('#maxTime').val());
+    	  var newDuration = maxtime - mintime;
+
+    	  this.$node.find('#timeLabel .time-marker').each(function(i) {
+    		  var v = (mintime + newDuration * (i/5)).toFixed(2);
+    		  $(this).text(v+"ms");
+    	  });
+    	  
+    	  var styles = {
+    		  left : "0.0%",
+    		  width: "100.0%",
+    		  color: "#000"
+    	  };
+          this.showSpinnerAround(function() {
+            $.each(self.spans, function(id, $span) {
+            	/*corresponding to this id extract span from backupspans list*/
+            	var origLeftVal = parseFloat((self.spansBackup[id]).find('.duration')[0].style.left);
+            	var origWidthVal = parseFloat((self.spansBackup[id]).find('.duration')[0].style.width);
+            	var spanStart = (origLeftVal*originalDuration)/100;
+            	var spanEnd = spanStart + (origWidthVal*originalDuration)/100;
+            	/*reset the color to black. It gets set for inrange spans to red*/
+            	styles.color = "#000";
+            	
+            	/*change style left, width and color of new spans based on mintime and maxtime*/
+    			if(spanStart < mintime && spanEnd < mintime) {
+    				styles.left = "0.0%"; styles.width = "0.0%";
+    			} else if (spanStart < mintime && spanEnd > mintime && spanEnd < maxtime) {
+    				var w = (((spanEnd - mintime))/newDuration) * 100 + "%";
+    				styles.left = "0.0%"; styles.width = w;
+    			} else if (spanStart < mintime && spanEnd > mintime && spanEnd > maxtime) {
+    				styles.left = "0.0%"; styles.width = "100.0%";
+    			} else if (spanStart >= mintime && spanStart < maxtime && spanEnd <= maxtime) {
+    				var l = (((spanStart - mintime))/newDuration) * 100 + "%";
+    				var w = (((spanEnd - spanStart))/newDuration) * 100 + "%";
+    				styles.left = l; styles.width = w; styles.color = "#d9534f";
+    			} else if (spanStart >= mintime && spanStart < maxtime && spanEnd > maxtime) {
+    				var l = (((spanStart - mintime))/newDuration) * 100 + "%";
+    				var w = (((maxtime - spanStart))/newDuration) * 100 + "%";
+    				styles.left = l; styles.width = w; styles.color = "#d9534f";
+    			} else if (spanStart > maxtime) {
+    				styles.left = "100.0%"; styles.width = "0.0%";
+    			} else if (spanStart == maxtime) {
+    				styles.left = "100.0%"; styles.width = "0.0%"; styles.color = "#d9534f";
+    			} else {
+    				styles.left = "0.0%"; styles.width = "0.0%";
+    			}
+
+    			$span.find('.duration').css('left', styles.left);
+    			$span.find('.duration').css('width', styles.width);
+    			$span.find('.duration').css('color', styles.color);
+            });
+
+          });
+          
+          /*show zoomOut button now*/
+    	  $('button[value=uiZoomOutSpans]').removeClass("hidden");
+          
+        };
+
+        /*This method brings back the original span container in view*/
+        this.zoomOutSpans = function() {
+      	  var originalDuration = parseInt($('#timeLabel-redraw .time-marker-5').text(), 10);
+
+      	  this.$node.find('#timeLabel .time-marker').each(function(i) {
+      		  var v = (originalDuration * (i/5)).toFixed(2);
+      		  $(this).text(v+"ms");
+      	  });
+      	  
+      	  var self = this;
+          this.showSpinnerAround(function() {
+            $.each(self.spans, function(id, $span) {
+              var originalStyle = $("#trace-container-redraw" + " #"+id +' .duration').attr('style');
+              $span.find('.duration').attr('style', originalStyle);
+            });
+
+          });
+          /*hide zoomOut button now*/
+    	  $('button[value=uiZoomOutSpans]').addClass("hidden");
+        };
+
+        
       this.after('initialize', function() {
         this.around('filterAdded', this.showSpinnerAround);
         this.around('filterRemoved', this.showSpinnerAround);
@@ -235,9 +337,13 @@ define(
 
         this.on(document, 'uiExpandAllSpans', this.expandAllSpans);
         this.on(document, 'uiCollapseAllSpans', this.collapseAllSpans);
+        this.on(document, 'uiZoomInSpans', this.zoomInSpans);
+        this.on(document, 'uiZoomOutSpans', this.zoomOutSpans);
 
         var self = this;
         self.$node.find('.span:not(#timeLabel)').each(function() { self.setupSpan($(this)); });
+        /*get spans from trace-container-redraw*/
+        $('#trace-container-redraw .span:not(#timeLabel-redraw)').each(function() { self.setupRedrawSpan($(this)); });
 
         var serviceName = $.getUrlVar('serviceName');
         if (serviceName !== undefined)

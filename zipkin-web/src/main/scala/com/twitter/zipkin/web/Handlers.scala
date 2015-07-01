@@ -445,6 +445,9 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
       Map("index" -> i, "time" -> durationStr((traceDuration * p).toLong))
     }
 
+    val timeMarkersRedraw = timeMarkers.map {m => collection.mutable.Map() ++ m}
+    val spansRedraw = spans.map {m => collection.mutable.Map() ++ m}
+
     val data = Map[String, Object](
       "traceId" -> trace.id.get.toHexString,
       "duration" -> durationStr(traceDuration),
@@ -453,7 +456,9 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
       "totalSpans" -> spans.size.asInstanceOf[Object],
       "serviceCounts" -> serviceDurations.map(_.sortBy(_.name)),
       "timeMarkers" -> timeMarkers,
-      "spans" -> spans)
+      "timeMarkersRedraw" -> timeMarkersRedraw,
+      "spans" -> spans,
+      "spansRedraw" -> spansRedraw)
 
     MustacheRenderer("v2/trace.mustache", data)
   }
@@ -506,6 +511,8 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
 				(l,w,"inrange")
 			} else if (start > maxTimeLong) {
 				(100,0.0,"outrange")
+			} else if (start == maxTimeLong) {
+				(100,0.0,"inrange")
 			} else {
 				(0,0.0,"outrange")
 			}
@@ -513,7 +520,6 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
 		
 
 	    val depth = combo.spanDepths.get.getOrElse(span.id, 1)
-	    //val width = span.duration.map { d => (d.toDouble / trace.duration.toDouble) * 100 }.getOrElse(0.0)
 	
 	    val binaryAnnotations = span.binaryAnnotations.map {
 	      case ann if ZConstants.CoreAddress.contains(ann.key) =>
@@ -534,8 +540,6 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
 	      "durationStr" -> span.duration.map { d => durationStr(d * 1000) },
 	      "left" -> left,
 	      "width" -> width,
-	      //"left" -> ((start - traceStartTimestamp).toFloat / trace.duration.toFloat) * 100,
-	      //"width" -> (if (width < 0.1) 0.1 else width),
 	      "depth" -> (depth + 1) * 5,
 	      "depthClass" -> (depth - 1) % 6,
 	      "children" -> childMap.get(span.id).map(_.map(s => SpanId(s.id).toString).mkString(",")),
@@ -565,14 +569,12 @@ class Handlers(jsonGenerator: ZipkinJson, mustacheGenerator: ZipkinMustache) {
 	
 	  
 	  val timeMarkers = Seq[Double](0.0, 0.2, 0.4, 0.6, 0.8, 1.0).zipWithIndex map { case (p, i) =>
-	    //Map("index" -> i, "time" -> durationStr((traceDuration * p).toLong))
 	    Map("index" -> i, "time" -> durationStr((minTime.toLong)*1000000 + ( (newDuration * 1000) * p).toLong))
 	  }
 	
 	  val data = Map[String, Object](
-		"traceId" -> trace.id.get.toHexString,
+            "traceId" -> trace.id.get.toHexString,
 	    "duration" -> durationStr(traceDuration),
-		//"duration" -> durationStr(newDuration),
 	    "services" -> serviceDurations.map(_.size),
 	    "depth" -> combo.spanDepths.map(_.values.max),
 	    "totalSpans" -> spans.size.asInstanceOf[Object],

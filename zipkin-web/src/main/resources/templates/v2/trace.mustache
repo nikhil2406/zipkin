@@ -19,6 +19,8 @@
     </select>
   </form>
 
+  <button type="button" class="btn btn-default btn-sm hidden" value='uiZoomInSpans'>ZoomIn</button>
+  <button type="button" class="btn btn-default btn-sm hidden" value='uiZoomOutSpans'>ZoomOut</button>
 
   <div class='trace-details services'>
   {{#serviceCounts}}
@@ -27,7 +29,7 @@
   </div>
 </div>
 
-  <div class="row well well-sm">
+<!--  <div class="row well well-sm">
     <form class='form-inline' role='form' action="/traceredraw/{{traceId}}" method="GET" target="_blank">
     <div class="form-group">
       <label for="minTime">MinTime</label>
@@ -41,7 +43,7 @@
     <button type="button" class="btn btn-default btn-sm" value='uiZoomInSpans'>ZoomIn</button>
     <button type="button" class="btn btn-default btn-sm hidden" value='uiZoomOutSpans'>ZoomOut</button>
     </form>
-  </div>
+  </div>-->
 
 <div class='row' id='trace-container'>
   <div id='timeLabel' class='span'>

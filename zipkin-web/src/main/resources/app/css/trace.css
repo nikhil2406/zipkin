@@ -7,6 +7,13 @@
   display: none;
 }
 
+#trace-container .rect-element {
+  border-style: dashed;
+  border-width: medium;
+  position: absolute;
+  z-index: 1;
+}
+
 #trace-container .span {
   cursor: pointer;
   display: none;

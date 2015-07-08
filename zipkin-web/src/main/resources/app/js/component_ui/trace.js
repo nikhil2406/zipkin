@@ -152,22 +152,23 @@ define(
        * width i.e. x coordinates are considered.*/
       this.handleMouseDown = function(e) {
     	  var self = this;
-    	  /*prevent selection and thus highlighting of spans after mousedown and mousemove*/
-    	  e.preventDefault();
     	  
-    	  //$('#minTime').val(e.pageX);
     	  var rectTop = e.pageY;
     	  var rectLeft = e.pageX;
 		  self.rectElement.appendTo(self.$node);
 
-		  self.rectElement.css('top', rectTop + 'px')
-		  self.rectElement.css('left', rectLeft + 'px');
+		  /*dont draw the rectangle until mouse is moved.
+		   * this helps in getting the parent right in case of click
+		   * event (when a span is clicked as opposed to mousedown followed by 
+		   * movement of mouse over a number of spans).*/
+		  self.rectElement.css('top', '0px')
+		  self.rectElement.css('left', '0px');
 		  self.rectElement.css('width', '0px');
 		  self.rectElement.css('height', '0px');
 		  
     	  self.$node.bind('mousemove', function(e){
+    		  /*prevent selection and thus highlighting of spans after mousedown and mousemove*/
     		  e.preventDefault();
-    		  //$('#maxTime').val(e.pageX);
 
     		  /*draw a rectangle out of mousedown and mousemove coordinates*/
     		  var rectWidth = Math.abs(e.pageX - rectLeft);
@@ -184,22 +185,42 @@ define(
     	  
     	  self.$node.bind('mouseup', function(e){
     		  self.$node.unbind('mousemove');
+    		  self.$node.unbind('mouseup');
     		  /*Add code to calculate mintime and max time from pixel value of 
     		   * mouse down and mouse move*/
     		  var originalDuration = parseFloat($('#timeLabel-redraw .time-marker-5').text());
     		  var spanClickViewOffsetPx = $('.content').position().left + $('#trace-container .span .handle').width();
     		  var spanClickViewWidthPx = $('#trace-container .time-marker-5').position().left;
-    		  var minTimeOffsetPx = self.rectElement.position().left - spanClickViewOffsetPx;
-    		  var maxTimeOffsetPx = (self.rectElement.position().left  + self.rectElement.width())
-    		  						- spanClickViewOffsetPx;
+
+    		  /*make sure that redraw mintime starts from 0.0 not less than 0.0.
+    		   * if user starts selecting from servicename adjust the left, width accordingly*/
+    		  var rectElementActualLeft =  
+    			  (self.rectElement.position().left < spanClickViewOffsetPx) ? spanClickViewOffsetPx : self.rectElement.position().left;
+    		  
+    		  var rectElementActualWidth =  
+    			  (self.rectElement.position().left < spanClickViewOffsetPx) ? 
+    					  (self.rectElement.width() - (spanClickViewOffsetPx - self.rectElement.position().left)) :
+    						  self.rectElement.width();
+    		  
+    		  var minTimeOffsetPx = rectElementActualLeft - spanClickViewOffsetPx;
+    		  var maxTimeOffsetPx = (rectElementActualLeft  + rectElementActualWidth) - spanClickViewOffsetPx;
 
     		  var minTime = minTimeOffsetPx * (originalDuration/spanClickViewWidthPx);
     		  var maxTime = maxTimeOffsetPx * (originalDuration/spanClickViewWidthPx);
-
+    		  
+    		  /*when mousemove doesnt happen mintime is greater than maxtime. 
+    		   *we need to invoke mouseclick functionality*/
+    		  if(minTime >= maxTime){
+    			  /*pass on the target which got clicked. Since we do not draw
+    			   * rectangle on just the mousedown we would never endup having
+    			   * rect-element as our target. Target would always be either 
+    			   * handle, time-marker, duration which are children of span class*/
+    			  self.handleClick(e.target);
+    		  }else {
+    			  /*now that we have min and max time, trigger zoominspans*/
+    			  self.trigger(document, 'uiZoomInSpans', {mintime: minTime, maxtime:maxTime});
+    		  }
     		  self.rectElement.remove();
-    		  self.$node.unbind('mouseup');
-    		  /*now that we have min and max time, trigger zoominspans*/
-    		  self.trigger(document, 'uiZoomInSpans', {mintime: minTime, maxtime:maxTime});
 
     	  });
         };
@@ -302,17 +323,18 @@ define(
        * Also unhides zoomout button so that user can go back to original span view*/
       this.zoomInSpans = function(node, data) {
     	  var self = this;
-
+    	  
     	  var originalDuration = parseFloat($('#timeLabel-redraw .time-marker-5').text());
-    	  //var mintime = parseFloat($('#minTime').val());
-    	  //var maxtime = parseFloat($('#maxTime').val());
+
     	  var mintime = data.mintime;
     	  var maxtime = data.maxtime;
     	  var newDuration = maxtime - mintime;
 
-    	  this.$node.find('#timeLabel .time-marker').each(function(i) {
+    	  self.$node.find('#timeLabel .time-marker').each(function(i) {
     		  var v = (mintime + newDuration * (i/5)).toFixed(2);
+    		  //TODO:all trace timings will not be in ms
     		  $(this).text(v+"ms");
+    		  $(this).css('color', "#d9534f");
     	  });
     	  
     	  var styles = {
@@ -320,7 +342,7 @@ define(
     		  width: "100.0%",
     		  color: "#000"
     	  };
-          this.showSpinnerAround(function() {
+          self.showSpinnerAround(function() {
             $.each(self.spans, function(id, $span) {
             	/*corresponding to this id extract span from backupspans list*/
             	var origLeftVal = parseFloat((self.spansBackup[id]).find('.duration')[0].style.left);
@@ -364,17 +386,17 @@ define(
           /*show zoomOut button now*/
     	  $('button[value=uiZoomOutSpans]').removeClass("hidden");
     	  $('button[value=uiZoomOutSpans]').addClass("btn-info pull-right");
-    	  
-          
         };
+
 
         /*This method brings back the original span container in view*/
         this.zoomOutSpans = function() {
       	  var originalDuration = parseInt($('#timeLabel-redraw .time-marker-5').text(), 10);
 
+      	  /*get values from the backup trace container*/
       	  this.$node.find('#timeLabel .time-marker').each(function(i) {
-      		  var v = (originalDuration * (i/5)).toFixed(2);
-      		  $(this).text(v+"ms");
+   		    $(this).css('color', "#000");
+      		$(this).text($('#timeLabel-redraw .time-marker-'+i).text());
       	  });
       	  
       	  var self = this;
@@ -395,7 +417,7 @@ define(
         this.around('filterRemoved', this.showSpinnerAround);
 
         this.on('click', this.handleClick);
-        this.on( 'mousedown', this.handleMouseDown);
+        this.on('mousedown', this.handleMouseDown);
 
         this.on(document, 'uiAddServiceNameFilter', this.filterAdded);
         this.on(document, 'uiRemoveServiceNameFilter', this.filterRemoved);

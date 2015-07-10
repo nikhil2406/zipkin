@@ -48,6 +48,11 @@
       </div>
     </div>
 
+    <!-- putting this button here so that it is available for trace list(on find trace) and span list(on trace detail page)-->
+    <button type="button" class="btn btn-default btn-sm back-to-top" style="display: none;" id="backToTop">
+	<span class="glyphicon glyphicon-chevron-up"></span>
+    </button>
+
     <!--[if lt IE 9]>
     <script src='/app/bower_components/es5-shim/es5-shim.js'></script>
     <script src='/app/bower_components/es5-shim/es5-sham.js'></script>
@@ -61,5 +66,28 @@
 
     <script src='/app/libs/bootstrap/js/bootstrap.min.js'></script>
     <script src='/app/libs/requirejs/require.js' data-main='/app/js/main.js'></script>
+
+    <script>
+    /* Not sure how to catch window scroll with in toTop.js. Once i found some way out
+     * this script can be moved along with click event handling in toTop.js*/
+ 		jQuery(document).ready(function() {
+		    var offset = 200;
+		    var duration = 200;
+		    jQuery(window).scroll(function() {
+		        if (jQuery(this).scrollTop() > offset) {
+		            jQuery('.back-to-top').fadeIn(duration);
+		        } else {
+		            jQuery('.back-to-top').fadeOut(duration);
+		        }
+		    });
+		 
+/* 		    jQuery('.back-to-top').click(function(event) {
+		        event.preventDefault();
+		        jQuery('html, body').animate({scrollTop: 0}, duration);
+		        return false;
+		    })
+ */		});
+	</script>
+
   </body>
 </html>

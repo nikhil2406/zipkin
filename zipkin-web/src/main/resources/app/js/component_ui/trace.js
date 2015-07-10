@@ -385,7 +385,7 @@ define(
           
           /*show zoomOut button now*/
     	  $('button[value=uiZoomOutSpans]').removeClass("hidden");
-    	  $('button[value=uiZoomOutSpans]').addClass("btn-info pull-right");
+          $('button[value=uiZoomOutSpans]').addClass("zoomOut");
         };
 
 

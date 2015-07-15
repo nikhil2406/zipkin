@@ -376,9 +376,8 @@ define(
     				styles.left = "0.0%"; styles.width = "0.0%";
     			}
 
-    			$span.find('.duration').css('left', styles.left);
-    			$span.find('.duration').css('width', styles.width);
     			$span.find('.duration').css('color', styles.color);
+                        $span.find('.duration').animate({left: styles.left, width: styles.width}, "slow" );
             });
 
           });
